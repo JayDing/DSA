@@ -16,17 +16,19 @@ function getGraph(x) {
     });
 }
 
-async function searchGraph(start, concurrency = 3) {
+// 遞迴
+async function searchGraph1(start, concurrency = 3) {
+    const time = Date.now();
     const queue = [start];
-    const visited = [];
-    visited.push(start);
+    const visited = [start];
 
     let running = 0;
     return new Promise(resolve => {
         function next() {
             if (queue.length === 0 && running === 0) {
-                resolve(visited);
-                return;
+                console.log(`Search completed in ${Date.now() - time}ms`);
+
+                return resolve(visited);
             }
 
             while (running < concurrency && queue.length > 0) {
@@ -51,10 +53,83 @@ async function searchGraph(start, concurrency = 3) {
     });
 }
 
+// batch
+async function searchGraph2(start, concurrency = 3) {
+    const time = Date.now();
+    const queue = [start];
+    const visited = [start];
+
+    while (queue.length > 0) {
+        const batch = queue.splice(0, concurrency);
+        const fetch = await Promise.all(batch.map(node => getGraph(node)));
+
+        for (const children of fetch) {
+            for (const child of children) {
+                if (!visited.includes(child)) {
+                    visited.push(child);
+                    queue.push(child);
+                }
+            }
+        }
+    }
+
+    console.log(`Search completed in ${Date.now() - time}ms`);
+
+    return visited;
+}
+
+// worker pool
+async function searchGraph3(start, concurrency = 3) {
+    const time = Date.now();
+    const queue = [start];
+    const visited = [start];
+
+    async function worker(idx, interval = 200, idleTimeout = 5000) {
+        let lastActivity = Date.now();
+
+        while (true) {
+            // 檢查佇列是否有節點
+            if (queue.length === 0) {
+                // 如果佇列為空，檢查是否有活動
+                if (Date.now() - lastActivity > idleTimeout) {
+                    console.log(`Worker ${idx + 1} finished`);
+                    return;
+                }
+
+                console.log(`Worker ${idx + 1} is idle, waiting for new tasks...`);
+                await new Promise(resolve => setTimeout(resolve, interval)); // 等待一段時間再檢查佇列
+                continue;
+            }
+
+            console.log(`Worker ${idx + 1} is active, processing...`);
+            lastActivity = Date.now(); // 更新最後活動時間
+
+            const node = queue.shift();
+            const children = await getGraph(node);
+
+            for (const child of children) {
+                if (!visited.includes(child)) {
+                    visited.push(child);
+                    queue.push(child);
+                }
+            }
+
+            console.log(`last completed: ${node}, time: ${Date.now() - time}ms`);
+        }
+    }
+
+    await Promise.all(Array.from({ length: concurrency }, (v, idx) => worker(idx)));
+
+    console.log(`Search completed in ${Date.now() - time}ms`);
+
+    return visited;
+}
+
 async function asyncGraphQueueSequential(start) {
-    const queue = [start];   // 初始化佇列
-    const visited = [];          // 存每個節點結果
-    let index = 0;               // 目前處理到佇列的位置
+    const time = Date.now();
+    const queue = [start];
+    const visited = [];
+    let index = 0;
 
     while (index < queue.length) {
         const node = queue[index];
@@ -63,23 +138,23 @@ async function asyncGraphQueueSequential(start) {
             visited.push({ node, children, q: [...queue] });
             queue.push(...children.filter(child => !queue.includes(child)));
         });
-        // const children = await getGraph(node); // 等待非同步任務完成
-        // results.push({ node, children, q: [...queue] });
 
-        // 把子節點加入佇列
-        // queue.push(...children.filter(child => !queue.includes(child)));
         index++; // 移動到下一個節點
     }
+
+    console.log(`Search completed in ${Date.now() - time}ms`);
 
     return visited;
 }
 
-const time1 = Date.now();
-const result1 = await searchGraph(1);
-console.log(`Search completed in ${Date.now() - time1}ms`);
+const result1 = await searchGraph1(1);
 console.log('Search results:', result1);
 
-const time2 = Date.now();
-const result2 = await asyncGraphQueueSequential(1);
-console.log(`Search completed in ${Date.now() - time2}ms`);
+const result2 = await searchGraph2(1);
 console.log('Search results:', result2);
+
+const result3 = await searchGraph3(1);
+console.log('Search results:', result3);
+
+// const result4 = await asyncGraphQueueSequential(1);
+// console.log('Search results:', result4);
