@@ -1,3 +1,11 @@
+/* 
+1 -> [2, 3, 4]
+    2 -> [5]
+    3 -> [5]
+    4 -> [6]
+        5 -> [7]
+        6 -> [7]
+*/
 function getGraph(x) {
     // const ms = 1000;
     const ms = Math.random() * 3 * 1000;
@@ -125,7 +133,7 @@ async function searchGraph3(start, concurrency = 3) {
     return visited;
 }
 
-async function asyncGraphQueueSequential(start) {
+async function searchGraphQueueSequential(start) {
     const time = Date.now();
     const queue = [start];
     const visited = [];
@@ -156,5 +164,5 @@ console.log('Search results:', result2);
 const result3 = await searchGraph3(1);
 console.log('Search results:', result3);
 
-// const result4 = await asyncGraphQueueSequential(1);
-// console.log('Search results:', result4);
+const result4 = await searchGraphQueueSequential(1);
+console.log('Search results:', result4);
